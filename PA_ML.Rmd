@@ -1,0 +1,117 @@
+---
+title: "Quantify how well they do it with fitness dumbbells"
+author: "Santha Krishnasamy"
+date: "4/16/2017"
+output: html_document
+---
+
+# Synopsis
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+Six young health participants were asked to perform one set of 10 repetitions of the Unilateral Dumbbell Biceps Curl in five different fashions: 
+exactly according to the specification (Class A), 
+throwing the elbows to the front (Class B), 
+lifting the dumbbell only halfway (Class C), 
+lowering the dumbbell only halfway (Class D) and 
+throwing the hips to the front (Class E).
+
+Read more: http://groupware.les.inf.puc-rio.br/har#weight_lifting_exercises#ixzz4eTUzCYNt
+
+## The Goal of this project
+The goal of your project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set. You may use any of the other variables to predict with. You should create a report describing how you built your model, how you used cross validation, what you think the expected out of sample error is, and why you made the choices you did. You will also use your prediction model to predict 20 different test cases.
+
+## Data
+
+The training data for this project are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+The data for this project come from this source: http://groupware.les.inf.puc-rio.br/har. If you use the document you create for this class for any purpose please cite them as they have been very generous in allowing their data to be used for this kind of assignment.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+set.seed(4563)
+library(caret)
+library(dplyr)
+library(rpart)
+library(randomForest)
+library(rpart.plot)
+
+setwd("/Users/GPR/Learning/JohnHopkins - DS/ML/Data")
+training <- read.csv("pml-training.csv",na.strings = c("#DIV/0!","NA",""))
+testing <- read.csv("pml-testing.csv",na.strings = c("#DIV/0!","NA",""))
+str(training)
+str(testing)
+```
+
+Finding all the ratios of invalid column data
+```{r}
+navaluestrain <- colSums(is.na(training))/nrow(training)
+# Ratio of Invalid column data in training data set
+str(navaluestrain)
+```
+
+Remove the columns that has more than 75% of invalid data which is either null or not applicable data. We do this so while training the model without error and poor accuracy.
+```{r}
+trainingset <- training[,navaluestrain < .25]
+
+# convert the classe variable into a factor variable
+trainingset$classe <- as.factor(trainingset$classe)
+
+```
+
+Now partition the training data such that 75% is training set and 25% testins set to test the model I am trained
+```{r}
+intrainset <- createDataPartition(y=trainingset$classe,p=0.75,list = FALSE)
+intrain <- trainingset[intrainset,]
+intest <- trainingset[-intrainset,]
+```
+
+Remove the columns that are not needed for training the model
+```{r}
+intrain <- intrain[,-c(1:7)]
+intest <- intest[,-c(1:7)]
+```
+
+Plot the Classe data to see how many people are getting trained with dumabells in each of the 5 different fashions mentioned in the synopsis.
+```{r}
+plot(intrain$classe)
+```
+
+We could see from the above graph, that larger amount of people are trained with dumbbells with exact specification who fall under the category A, following is the people who have a fashion of throwing the hips front.
+
+## Training the Model
+
+### Prediction Model 1: Decision Tree
+```{r}
+fitrptrain <- rpart(classe~.,data=intrain,method = "class")
+predictrp <- predict(fitrptrain,intest,type = "class")
+confusionMatrix(predictrp,intest$classe)
+
+rpart.plot(fitrptrain, main="Classification Tree", extra=102, under=TRUE, faclen=0)
+
+```
+
+### Prediction Model 2: Random Forest Model
+```{r}
+fitrftrain <- randomForest(classe~.,data=intrain,method = "class")
+predictrf <- predict(fitrftrain,intest)
+confusionMatrix(predictrf,intest$classe)
+```
+
+From the above model accuracy, we see that the random forest has performed better with an accuracy of 99%, when compared to the decision tree algorithm with very high expected out of sample error and accuracy of ony 66.5% and the random forest algorithm - shows the  confusion matrix table with prediction and reference shows that this is a best model by only a small amount of samples are falling away from the respective classe and we ould fit most of the testing data right. So we will choose the Random forest Prediction Model.
+
+## Submission
+
+Let us apply the RF model against the testing data
+```{r}
+library(caret)
+predicttest <- predict(fitrftrain,testing,type= "class")
+predicttest
+```
+
